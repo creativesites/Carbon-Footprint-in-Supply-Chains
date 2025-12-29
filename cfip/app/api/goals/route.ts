@@ -1,32 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
-
-// Zambian emissions guidelines (example values - adjust based on actual regulations)
-export const ZAMBIAN_GUIDELINES = {
-  annualLimits: {
-    transport: {
-      TRUCK: 50000, // kg CO2e per year
-      RAIL: 30000,
-      SHIP: 20000,
-      AIR: 100000,
-    },
-    total: 200000, // kg CO2e per year
-  },
-  recommendations: [
-    'Prioritize rail transport over road transport where possible',
-    'Use electric or hybrid vehicles for short-distance deliveries',
-    'Optimize load factors to minimize trips',
-    'Consider carbon offsetting through verified projects',
-    'Implement route optimization to reduce distances',
-    'Regular vehicle maintenance to improve fuel efficiency',
-  ],
-  benchmarks: {
-    excellent: 0.8, // 80% or below target
-    good: 0.9, // 90% of target
-    moderate: 1.0, // At target
-    poor: 1.2, // 20% above target
-  },
-};
+import { ZAMBIAN_GUIDELINES } from '@/lib/constants/guidelines';
 
 export async function GET(request: Request) {
   try {
@@ -138,9 +112,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { title, description, targetValue, targetDate, category } = body;
+    const { name, description, targetValue, targetDate, goalType, baselineValue, startDate } = body;
 
-    if (!title || !targetValue || !targetDate) {
+    if (!name || !targetValue || !targetDate || !baselineValue || !startDate) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -162,13 +136,15 @@ export async function POST(request: Request) {
     const goal = await prisma.goal.create({
       data: {
         userId,
-        title,
+        name,
         description: description || '',
+        goalType: goalType || 'PERCENTAGE_REDUCTION',
+        baselineValue: parseFloat(baselineValue),
         targetValue: parseFloat(targetValue),
         currentValue: 0,
+        startDate: new Date(startDate),
         targetDate: new Date(targetDate),
         status: 'IN_PROGRESS',
-        category: category || 'EMISSIONS',
       },
     });
 

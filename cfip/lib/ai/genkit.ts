@@ -4,7 +4,7 @@ import { googleAI, gemini15Flash } from '@genkit-ai/googleai';
 // Initialize Genkit with Google AI
 export const ai = genkit({
   plugins: [googleAI({ apiKey: process.env.GEMINI_API_KEY })],
-  model: gemini15Flash,
+  model: googleAI.model('gemini-3-flash-preview'),
 });
 
 // Analyze emissions data and provide insights

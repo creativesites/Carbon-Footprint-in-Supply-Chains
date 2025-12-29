@@ -286,3 +286,27 @@ model Report {
 
   createdAt       DateTime  @default(now())
 }
+
+// ============================================
+// AI ANALYSIS
+// ============================================
+
+model Analysis {
+  id              String    @id @default(cuid())
+  userId          String
+
+  name            String
+  analysisType    String    // EMISSIONS_ANALYSIS, ROUTE_OPTIMIZATION, GOAL_INSIGHTS, CUSTOM
+
+  // Input parameters (JSON string)
+  inputData       String
+
+  // Analysis results
+  insights        String    // Markdown formatted insights
+  structuredData  String?   // JSON string of structured data for charts/components
+
+  // Metadata
+  status          String    @default("COMPLETED") // PENDING, COMPLETED, FAILED
+  generatedAt     DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+}

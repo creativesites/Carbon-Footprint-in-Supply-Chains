@@ -48,8 +48,8 @@ export async function POST(request: Request) {
     // Calculate totals
     const totalEmissions = calculations.reduce((sum, calc) => sum + calc.totalCO2e, 0);
     const totalCO2 = calculations.reduce((sum, calc) => sum + calc.co2, 0);
-    const totalCH4 = calculations.reduce((sum, calc) => sum + calc.ch4, 0);
-    const totalN2O = calculations.reduce((sum, calc) => sum + calc.n2o, 0);
+    const totalCH4 = calculations.reduce((sum, calc) => sum + (calc.ch4 || 0), 0);
+    const totalN2O = calculations.reduce((sum, calc) => sum + (calc.n2o || 0), 0);
     const totalDistance = calculations.reduce((sum, calc) => sum + calc.shipment.distance, 0);
     const totalWeight = calculations.reduce((sum, calc) => sum + calc.shipment.weight, 0);
 
@@ -112,11 +112,12 @@ export async function POST(request: Request) {
     const report = await prisma.report.create({
       data: {
         userId,
-        title: `${reportType} Report - ${start.toLocaleDateString()} to ${end.toLocaleDateString()}`,
-        reportType,
-        startDate: start,
-        endDate: end,
-        data: JSON.stringify({
+        name: `${reportType} Report - ${start.toLocaleDateString()} to ${end.toLocaleDateString()}`,
+        type: reportType,
+        format: 'JSON',
+        dateFrom: start,
+        dateTo: end,
+        filters: JSON.stringify({
           summary: {
             totalEmissions,
             totalCO2,
@@ -145,7 +146,7 @@ export async function POST(request: Request) {
             scope: calc.scope,
           })),
           goals: goals.map((goal) => ({
-            title: goal.title,
+            name: goal.name,
             target: goal.targetValue,
             current: goal.currentValue,
             status: goal.status,
@@ -153,7 +154,8 @@ export async function POST(request: Request) {
           })),
           aiInsights,
         }),
-        generatedBy: 'USER',
+        status: 'COMPLETED',
+        generatedAt: new Date(),
       },
     });
 
@@ -163,10 +165,11 @@ export async function POST(request: Request) {
         reportId: report.id,
         report: {
           id: report.id,
-          title: report.title,
-          reportType: report.reportType,
-          startDate: report.startDate,
-          endDate: report.endDate,
+          name: report.name,
+          type: report.type,
+          format: report.format,
+          dateFrom: report.dateFrom,
+          dateTo: report.dateTo,
           summary: {
             totalEmissions,
             totalCO2,
@@ -186,6 +189,7 @@ export async function POST(request: Request) {
           goals,
           aiInsights,
           generatedAt: report.generatedAt,
+          status: report.status,
         },
       },
     });
@@ -198,7 +202,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
     // Get demo user from database
     const demoUser = await prisma.user.findUnique({
@@ -220,12 +224,13 @@ export async function GET(request: Request) {
 
     const formattedReports = reports.map((report) => ({
       id: report.id,
-      title: report.title,
-      reportType: report.reportType,
-      startDate: report.startDate,
-      endDate: report.endDate,
+      name: report.name,
+      type: report.type,
+      format: report.format,
+      dateFrom: report.dateFrom,
+      dateTo: report.dateTo,
       generatedAt: report.generatedAt,
-      generatedBy: report.generatedBy,
+      status: report.status,
     }));
 
     return NextResponse.json({

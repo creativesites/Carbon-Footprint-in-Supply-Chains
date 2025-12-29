@@ -8,6 +8,11 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "CFIP - Carbon Footprint Intelligence Platform",
   description: "AI-powered platform for predicting and optimizing supply chain carbon emissions",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 5,
+  },
 };
 
 export default function RootLayout({

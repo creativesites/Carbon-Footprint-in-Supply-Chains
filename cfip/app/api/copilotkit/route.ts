@@ -4,9 +4,6 @@ import {
   GoogleGenerativeAIAdapter,
   copilotRuntimeNextJSAppRouterEndpoint,
 } from '@copilotkit/runtime';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const copilotKit = new CopilotRuntime({
   actions: [
@@ -46,7 +43,14 @@ const copilotKit = new CopilotRuntime({
           required: true,
         },
       ],
-      handler: async ({ origin, destination, distance, weight, transportMode, fuelType }) => {
+      handler: async ({ origin, destination, distance, weight, transportMode, fuelType }: {
+        origin: string;
+        destination: string;
+        distance: number;
+        weight: number;
+        transportMode: string;
+        fuelType: string;
+      }) => {
         const response = await fetch(`${process.env.NEXTAUTH_URL}/api/calculate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -103,6 +107,14 @@ const copilotKit = new CopilotRuntime({
         currentMode,
         currentFuel,
         currentEmissions,
+      }: {
+        origin: string;
+        destination: string;
+        distance: number;
+        weight: number;
+        currentMode: string;
+        currentFuel: string;
+        currentEmissions: number;
       }) => {
         const response = await fetch(`${process.env.NEXTAUTH_URL}/api/ai/analyze`, {
           method: 'POST',
@@ -157,7 +169,7 @@ export const POST = async (req: NextRequest) => {
   const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
     runtime: copilotKit,
     serviceAdapter: new GoogleGenerativeAIAdapter({
-      model: genAI.getGenerativeModel({ model: 'gemini-1.5-flash' }),
+      model: 'gemini-3-flash-preview' as any,
     }),
     endpoint: '/api/copilotkit',
   });

@@ -2,25 +2,30 @@
 
 import { useEffect, useState } from 'react';
 import { formatCO2, formatNumber } from '@/lib/utils';
+import { MarkdownRenderer } from '@/components/analysis/MarkdownRenderer';
+import { exportReportToPDF } from '@/lib/utils/pdf-export';
+import { Download, Loader2 } from 'lucide-react';
 
 interface SavedReport {
   id: string;
-  title: string;
-  reportType: string;
-  startDate: string;
-  endDate: string;
+  name: string;
+  type: string;
+  format: string;
+  dateFrom: string;
+  dateTo: string;
   generatedAt: string;
-  generatedBy: string;
+  status: string;
 }
 
 interface ReportData {
   reportId: string;
   report: {
     id: string;
-    title: string;
-    reportType: string;
-    startDate: string;
-    endDate: string;
+    name: string;
+    type: string;
+    format: string;
+    dateFrom: string;
+    dateTo: string;
     summary: {
       totalEmissions: number;
       totalCO2: number;
@@ -96,95 +101,39 @@ export default function ReportsPage() {
 
   const handleExportPDF = () => {
     if (!generatedReport) return;
+    exportReportToPDF(generatedReport.report);
+  };
 
-    const printWindow = window.open('', '', 'width=800,height=600');
-    if (!printWindow) return;
+  const handleViewReport = async (reportId: string) => {
+    setLoading(true);
+    try {
+      // For now, we'll just regenerate with the same parameters
+      // In production, you'd fetch the full report from the API
+      const report = savedReports.find(r => r.id === reportId);
+      if (!report) return;
 
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>${generatedReport.report.title}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 40px; }
-            h1 { color: #059669; }
-            h2 { color: #047857; margin-top: 24px; }
-            table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f3f4f6; }
-            .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
-            .summary-card { border: 1px solid #ddd; padding: 16px; }
-          </style>
-        </head>
-        <body>
-          <h1>${generatedReport.report.title}</h1>
-          <p><strong>Period:</strong> ${new Date(generatedReport.report.startDate).toLocaleDateString()} - ${new Date(generatedReport.report.endDate).toLocaleDateString()}</p>
-          <p><strong>Generated:</strong> ${new Date(generatedReport.report.generatedAt).toLocaleString()}</p>
+      const res = await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reportType: report.type,
+          startDate: report.dateFrom,
+          endDate: report.dateTo,
+          includeAI: true,
+        }),
+      });
 
-          <h2>Executive Summary</h2>
-          <div class="summary-grid">
-            <div class="summary-card">
-              <strong>Total Emissions:</strong> ${formatCO2(generatedReport.report.summary.totalEmissions)}
-            </div>
-            <div class="summary-card">
-              <strong>Total Shipments:</strong> ${generatedReport.report.summary.totalCalculations}
-            </div>
-            <div class="summary-card">
-              <strong>Total Distance:</strong> ${formatNumber(generatedReport.report.summary.totalDistance, 0)} km
-            </div>
-            <div class="summary-card">
-              <strong>Average per Shipment:</strong> ${formatCO2(generatedReport.report.summary.averageEmissionsPerShipment)}
-            </div>
-          </div>
-
-          <h2>Emissions by Transport Mode</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Transport Mode</th>
-                <th>Shipments</th>
-                <th>Total Emissions</th>
-                <th>% of Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${Object.entries(generatedReport.report.emissionsByMode)
-                .sort((a, b) => b[1] - a[1])
-                .map(
-                  ([mode, emissions]) => `
-                <tr>
-                  <td>${mode}</td>
-                  <td>${generatedReport.report.countByMode[mode]}</td>
-                  <td>${formatCO2(emissions)}</td>
-                  <td>${formatNumber((emissions / generatedReport.report.summary.totalEmissions) * 100, 1)}%</td>
-                </tr>
-              `
-                )
-                .join('')}
-            </tbody>
-          </table>
-
-          ${
-            generatedReport.report.aiInsights
-              ? `
-            <h2>AI-Generated Insights</h2>
-            <div style="white-space: pre-wrap; padding: 16px; background: #f9fafb; border-left: 4px solid #059669;">
-              ${generatedReport.report.aiInsights}
-            </div>
-          `
-              : ''
-          }
-
-          <p style="margin-top: 40px; font-size: 12px; color: #666;">
-            Generated by Carbon Footprint Intelligence Platform (CFIP)<br>
-            ${new Date().toLocaleString()}
-          </p>
-        </body>
-      </html>
-    `);
-
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+      const result = await res.json();
+      if (result.success) {
+        setGeneratedReport(result.data);
+        // Scroll to the report
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    } catch (error) {
+      console.error('Error loading report:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -290,18 +239,19 @@ export default function ReportsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">
-                    {generatedReport.report.title}
+                    {generatedReport.report.name}
                   </h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    {new Date(generatedReport.report.startDate).toLocaleDateString()} -{' '}
-                    {new Date(generatedReport.report.endDate).toLocaleDateString()}
+                    {new Date(generatedReport.report.dateFrom).toLocaleDateString()} -{' '}
+                    {new Date(generatedReport.report.dateTo).toLocaleDateString()}
                   </p>
                 </div>
                 <button
                   onClick={handleExportPDF}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
                 >
-                  📄 Export PDF
+                  <Download className="w-4 h-4" />
+                  Export PDF
                 </button>
               </div>
             </div>
@@ -370,11 +320,7 @@ export default function ReportsPage() {
               {generatedReport.report.aiInsights && (
                 <div className="mb-8">
                   <h3 className="text-lg font-semibold mb-4">🤖 AI-Generated Insights</h3>
-                  <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-6 border-l-4 border-green-600">
-                    <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">
-                      {generatedReport.report.aiInsights}
-                    </div>
-                  </div>
+                  <MarkdownRenderer content={generatedReport.report.aiInsights} />
                 </div>
               )}
 
@@ -407,8 +353,22 @@ export default function ReportsPage() {
         )}
 
         {/* Saved Reports */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">Previously Generated Reports</h2>
+        <div className="bg-white rounded-lg shadow p-6 relative">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Previously Generated Reports</h2>
+            {savedReports.length > 0 && (
+              <p className="text-sm text-gray-500">Click on a report to view details</p>
+            )}
+          </div>
+
+          {loading && (
+            <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10 rounded-lg">
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-green-600" />
+                <p className="text-sm text-gray-600">Loading report...</p>
+              </div>
+            </div>
+          )}
 
           {savedReports.length === 0 ? (
             <div className="text-center py-12">
@@ -443,21 +403,28 @@ export default function ReportsPage() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {savedReports.map((report) => (
-                    <tr key={report.id} className="hover:bg-gray-50">
+                    <tr
+                      key={report.id}
+                      onClick={() => handleViewReport(report.id)}
+                      className="hover:bg-gray-50 cursor-pointer transition-colors"
+                    >
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                        {report.title}
+                        <div className="flex items-center gap-2">
+                          <span>📄</span>
+                          <span>{report.name}</span>
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
                         <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
-                          {report.reportType}
+                          {report.type}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
-                        {new Date(report.startDate).toLocaleDateString()} -{' '}
-                        {new Date(report.endDate).toLocaleDateString()}
+                        {new Date(report.dateFrom).toLocaleDateString()} -{' '}
+                        {new Date(report.dateTo).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
-                        {new Date(report.generatedAt).toLocaleString()}
+                        {report.generatedAt ? new Date(report.generatedAt).toLocaleString() : 'N/A'}
                       </td>
                     </tr>
                   ))}
