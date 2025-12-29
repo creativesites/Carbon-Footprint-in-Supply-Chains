@@ -354,7 +354,7 @@ http://localhost:3000/dashboard
 
 ```env
 # AI Configuration
-GEMINI_API_KEY=AIzaSyBSJL9DIepB0JRrK0I-lfdwmjKzsGd6xIY
+
 
 # Database
 DATABASE_URL=file:./prisma/dev.db
