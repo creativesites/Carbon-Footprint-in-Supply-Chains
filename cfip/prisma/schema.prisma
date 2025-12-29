@@ -1,0 +1,288 @@
+// prisma/schema.prisma
+// SQLite-compatible schema (enums → String, Json → String)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// ============================================
+// USER MANAGEMENT
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String
+  role          String    @default("USER") // ADMIN, MANAGER, USER, SUPPLIER, CARRIER
+  companyId     String?
+  company       Company?  @relation(fields: [companyId], references: [id])
+
+  shipments     Shipment[]
+  goals         Goal[]
+  calculations  Calculation[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Company {
+  id              String    @id @default(cuid())
+  name            String
+  industry        String?
+  country         String?
+
+  users           User[]
+  shipments       Shipment[]
+  goals           Goal[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// ============================================
+// CARBON CALCULATIONS
+// ============================================
+
+model Shipment {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  companyId       String?
+  company         Company?  @relation(fields: [companyId], references: [id])
+
+  // Shipment details
+  origin          String
+  destination     String
+  distance        Float     // in kilometers
+  transportMode   String    // TRUCK, RAIL, SHIP, AIR, MULTIMODAL
+  fuelType        String    // DIESEL, ELECTRIC, HYBRID, JET_FUEL, HEAVY_FUEL_OIL, LNG, BIODIESEL
+  weight          Float     // in tonnes
+  volume          Float?    // in cubic meters
+
+  // Metadata
+  shipmentDate    DateTime?
+  status          String    @default("PLANNED") // PLANNED, IN_TRANSIT, COMPLETED, CANCELLED
+
+  // Relationships
+  calculation     Calculation?
+  prediction      Prediction?
+  optimizations   Optimization[]
+  auditLogs       AuditLog[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Calculation {
+  id              String    @id @default(cuid())
+  shipmentId      String    @unique
+  shipment        Shipment  @relation(fields: [shipmentId], references: [id])
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+
+  // Emissions (in kg)
+  co2             Float
+  ch4             Float?
+  n2o             Float?
+  totalCO2e       Float     // Total CO2 equivalent
+
+  // Calculation details
+  emissionFactor  Float
+  scope           String    // SCOPE_1, SCOPE_2, SCOPE_3
+  methodology     String    @default("GHG_Protocol")
+
+  // Adjustments applied
+  weatherFactor   Float     @default(0)
+  loadFactor      Float     @default(0)
+  trafficFactor   Float     @default(0)
+
+  // Metadata
+  calculatedAt    DateTime  @default(now())
+  version         String    @default("1.0")
+
+  auditLogs       AuditLog[]
+}
+
+model EmissionFactor {
+  id              String    @id @default(cuid())
+
+  transportMode   String    // TRUCK, RAIL, SHIP, AIR
+  fuelType        String    // DIESEL, ELECTRIC, etc.
+  region          String    @default("GLOBAL")
+
+  // Emission factors (kg CO2 per tonne-km)
+  co2Factor       Float
+  ch4Factor       Float?
+  n2oFactor       Float?
+
+  // Metadata
+  source          String    // "EPA", "IPCC", "DEFRA", etc.
+  year            Int
+  lastUpdated     DateTime  @default(now())
+
+  @@unique([transportMode, fuelType, region])
+}
+
+// ============================================
+// AI PREDICTIONS & OPTIMIZATION
+// ============================================
+
+model Prediction {
+  id              String    @id @default(cuid())
+  shipmentId      String    @unique
+  shipment        Shipment  @relation(fields: [shipmentId], references: [id])
+
+  // Predicted emissions
+  predictedCO2    Float
+  confidenceLow   Float
+  confidenceHigh  Float
+  confidence      Float     // 0-100%
+
+  // Model details
+  modelVersion    String
+  features        String    // JSON string of input features
+
+  // Accuracy tracking
+  actualCO2       Float?
+  accuracy        Float?    // Set after actual calculation
+
+  createdAt       DateTime  @default(now())
+}
+
+model Optimization {
+  id              String    @id @default(cuid())
+  shipmentId      String
+  shipment        Shipment  @relation(fields: [shipmentId], references: [id])
+
+  // Suggestion details
+  type            String    // ROUTE_CHANGE, MODE_SWITCH, CARRIER_SWITCH, CONSOLIDATION, TIMING_ADJUSTMENT
+  description     String
+
+  // Impact
+  currentCO2      Float
+  optimizedCO2    Float
+  savingsKg       Float
+  savingsPercent  Float
+
+  // Implementation
+  status          String    @default("SUGGESTED") // SUGGESTED, ACCEPTED, REJECTED, IMPLEMENTED
+  implementedAt   DateTime?
+
+  createdAt       DateTime  @default(now())
+}
+
+// ============================================
+// SUSTAINABILITY GOALS
+// ============================================
+
+model Goal {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  companyId       String?
+  company         Company?  @relation(fields: [companyId], references: [id])
+
+  // Goal details
+  name            String
+  description     String?
+  goalType        String    // ABSOLUTE_REDUCTION, PERCENTAGE_REDUCTION, INTENSITY_TARGET, CARBON_NEUTRAL
+
+  // Targets
+  baselineValue   Float     // Starting emissions
+  targetValue     Float     // Goal emissions
+  unit            String    @default("kg CO2e")
+
+  // Timeline
+  startDate       DateTime
+  targetDate      DateTime
+
+  // Progress tracking
+  currentValue    Float?
+  progressPercent Float?
+  status          String    @default("IN_PROGRESS") // IN_PROGRESS, ACHIEVED, AT_RISK, FAILED
+
+  // Milestones
+  milestones      Milestone[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Milestone {
+  id              String    @id @default(cuid())
+  goalId          String
+  goal            Goal      @relation(fields: [goalId], references: [id])
+
+  name            String
+  targetValue     Float
+  targetDate      DateTime
+  achieved        Boolean   @default(false)
+  achievedAt      DateTime?
+
+  createdAt       DateTime  @default(now())
+}
+
+// ============================================
+// BLOCKCHAIN SIMULATION (Audit Trail)
+// ============================================
+
+model AuditLog {
+  id              String    @id @default(cuid())
+
+  // Reference to original record
+  shipmentId      String?
+  shipment        Shipment? @relation(fields: [shipmentId], references: [id])
+  calculationId   String?
+  calculation     Calculation? @relation(fields: [calculationId], references: [id])
+
+  // Blockchain-like fields
+  action          String    // "CREATE", "UPDATE", "DELETE"
+  entity          String    // "Shipment", "Calculation", etc.
+  data            String    // JSON string snapshot of data
+
+  // Immutability features
+  previousHash    String?
+  currentHash     String    @unique
+  signature       String?
+
+  // Metadata
+  timestamp       DateTime  @default(now())
+  userId          String?
+
+  @@index([currentHash])
+  @@index([timestamp])
+}
+
+// ============================================
+// REPORTS
+// ============================================
+
+model Report {
+  id              String    @id @default(cuid())
+  userId          String
+
+  name            String
+  type            String    // EMISSIONS_SUMMARY, GOAL_PROGRESS, CDP_DISCLOSURE, CUSTOM
+  format          String    // PDF, EXCEL, CSV, JSON
+
+  // Filters & parameters
+  dateFrom        DateTime
+  dateTo          DateTime
+  filters         String?   // JSON string
+
+  // File info
+  fileUrl         String?
+  fileSize        Int?
+
+  // Status
+  status          String    @default("PENDING") // PENDING, GENERATING, COMPLETED, FAILED
+  generatedAt     DateTime?
+
+  createdAt       DateTime  @default(now())
+}
